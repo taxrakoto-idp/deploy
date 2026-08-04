@@ -1,0 +1,131 @@
+# example  values.yaml
+
+# private registry access secret
+registrySecret: ugd-gitlab
+
+# .env that will be inserted into a configmap data
+env:
+  APP_PORT: "3000"
+  APP_VERSION: 0.1
+  OCRVS_DATA_STORAGE_API_HOST: api
+  OCRVS_DATA_STORAGE_API_PORT: 3000
+  OCRVS_DATA_STORAGE_EXTERNAL_API_PORT: 3080
+  RUN_SEED: true
+
+db_env:  # possible keyref values: user, password, uri, jdbc_uri, host, port, dbname
+  - name: DATABASE_URL
+    keyref: uri
+  - name: POSTGRES_HOST
+    keyref: host
+  - name: POSTGRES_PORT 
+    keyref: port
+
+secretEnv:
+  secretStoreRef:
+    name: AWS-UGD
+    kind: SecretStore
+  data:  # map environment variable names to AWS Secrets Manager entries
+    # remoteRef.key: secret name or full ARN in AWS Secrets Manager
+    # remoteRef.property: optional JSON key inside the secret (omit if the secret is a plain string)
+    - name: TOKEN      # Key  inside the K8S Secret
+      remoteRef:
+        key: my-app/token           # AWS Secrets Manager secret name or ARN
+        property: token          # optional JSON property in the secret
+    - name: PASSWORD
+      remoteRef:
+        key: my-app/password        # example secret reference in AWS Secrets Manager
+        property: password       # optional JSON property in the secret
+
+
+#deployment
+replicaCount: 2
+
+#resources utilisation
+resourcesLimit:
+  enabled: true 
+  cpurequest: "100m"
+  cpulimit: "1"
+  memrequest: "128Mi"
+  memlimit: "1Gi"
+
+#container
+image:
+  repository: registry.gitlab.com/ugd-mg/siecm/migration/siecm_data_collector_api
+  tag: staging-v1
+  pullPolicy: IfNotPresent
+
+customCommand:
+  enabled: false
+  command:
+    - gunicorn
+    - "--timeout"
+    - "600"
+    - "--workers"
+    - "4"
+    - "--bind"
+    - "0.0.0.0:5000"
+    - "run:app"
+
+#ports
+containerPort: 3000
+servicePort: 8080
+
+domain: "*.app.digital.gov.mg"
+
+httproute:
+  enabled: false
+  pathType: PathPrefix
+  path: /api
+
+#ingress (# Deprecated for IAVOLOHA, use httproute instead )
+ingress:
+  enabled: false
+  #special annotations if tls enabled
+  tls:
+    enabled: true
+    issuerType: cert-manager.io/issuer
+    issuerName: izaho.digital.gov.mg
+  # enable the catcher if certificate challenge is stuck in pending state
+  # thats' because the http validation is caught by the backend pod with restrictions
+  # such as API returning a 404 error 
+  httpChallengeCatcher:
+    enabled: false
+  #ingress annotations
+  annotations:
+    acme.cert-manager.io/http01-edit-in-place: "true" 
+    nginx.org/proxy-connect-timeout: "30s"
+  # NOTE:  
+  # acme.cert-manager.io/http01-edit-in-place: "true": 
+  # this controls whether the ingress is modified 'in-place', or a new one is created specifically for the HTTP01 challenge
+  # see https://cert-manager.io/docs/usage/ingress/
+
+
+volumes:
+  enabled: false
+  mounts:
+    - name: config 
+      mountPath: /app/config
+      size: 500Mi
+      accessModes: [ReadWriteOnce]
+      readOnly: false
+    - name: data
+      mountPath: /var/data
+      size: 1Gi
+      accessModes: [ReadWriteMany]
+      readOnly: true
+
+postgres:
+  enabled: false
+  version: 17
+  name: ""  # Leave blank; cluster name will default to Release.Name
+  database: siecmdb
+  username: admin
+  options: "SUPERUSER"  # PostgreSQL options (e.g. CREATEDB, CREATEROLE)
+  storage:
+    size: 500Mi
+    storageClass: longhorn
+    limit: 5Gi
+  backup:
+    enabled: false
+    size: 500Mi
+    storageClass: longhorn

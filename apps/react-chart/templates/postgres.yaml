@@ -1,0 +1,44 @@
+# templates/postgres.yaml
+{{- if .Values.postgres.enabled }}
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.postgres.namespace | default .Release.Namespace }}
+spec:
+  postgresVersion: {{ .Values.postgres.version }}
+  instances:
+    - name: instance1
+      dataVolumeClaimSpec:
+        accessModes:
+        - "ReadWriteOnce"
+        storageClassName: {{ .Values.postgres.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage.size }}
+          limits:
+            storage: {{ .Values.postgres.storage.limit }}
+  users:
+    - name: {{ .Values.postgres.username }}
+      databases:
+        - {{ .Values.postgres.database }}
+      options: {{ .Values.postgres.options | quote }}
+  patroni:
+    dynamicConfiguration:
+      synchronous_mode: false
+  {{- if .Values.postgres.backup.enabled }}
+  backups:
+    pgbackrest:
+      repos:
+        - name: {{ printf "%s-backup-repo" .Release.Name }}
+          volume:
+            volumeClaimSpec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: {{ .Values.postgres.backup.size }}
+              storageClassName: {{ .Values.postgres.backup.storageClass }}
+  {{- end }}
+#  tls:
+#    enabled: false
+{{- end }}

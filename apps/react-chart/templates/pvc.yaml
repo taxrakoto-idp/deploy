@@ -1,0 +1,19 @@
+{{- if .Values.volumes.enabled }}
+{{- $root := . }}
+{{- range .Values.volumes.mounts }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-%s-pvc" $root.Release.Name .name }}
+spec:
+  accessModes:
+    {{- range .accessModes }}
+    - {{ . }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .size }}
+  storageClassName: longhorn
+---
+{{- end }}
+{{- end }}

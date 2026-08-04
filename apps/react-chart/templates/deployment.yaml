@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }} 
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-configmap
+            {{- $secretEnv := .Values.secretEnv }}
+            {{- if and $secretEnv $secretEnv.data }}
+            - secretRef:
+                name: {{ printf "%s-secret" .Release.Name }}
+            {{- end }}
+          {{- if .Values.postgres.enabled }}
+          env:
+           {{- $root := . -}}
+           {{- $username := default "hippo" $root.Values.postgres.username -}}
+           {{- $secret := printf "%s-pguser-%s" $root.Release.Name $username -}}
+           {{- range $i, $e := $root.Values.db_env }}
+           - name: {{ required "db_env[].name is required" $e.name }}
+             valueFrom:
+               secretKeyRef:
+                 name: {{ $secret }}
+                 key: {{ required "db_env[].keyref is required" $e.keyref | replace "_" "-" }}
+            {{- end }}
+          {{- end }}
+          image: {{ .Values.image.repository}}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          {{- if .Values.resourcesLimit.enabled }}
+          resources:
+            requests:
+              memory: {{ .Values.resourcesLimit.memrequest }}
+              cpu: {{ .Values.resourcesLimit.cpurequest }}
+            limits:
+              memory: {{ .Values.resourcesLimit.memlimit }}
+              cpu: {{ .Values.resourcesLimit.cpulimit }}
+          {{- end }}
+          {{- if .Values.customCommand.enabled }}
+          command: {{ toJson .Values.customCommand.command }}
+          {{- end }}
+          {{- if .Values.volumes.enabled }}
+          {{- $root := . }}
+          volumeMounts:
+            {{- range .Values.volumes.mounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly | default false }}
+            {{- end }}
+          {{- end }}
+      imagePullSecrets:
+        - name: {{ .Values.registrySecret }}
+      {{- if .Values.volumes.enabled }}
+      {{- $root := . }}
+      volumes:
+        {{- range .Values.volumes.mounts }}
+        - name: {{ .name }}
+          persistentVolumeClaim:
+            claimName: {{ printf "%s-%s-pvc" $root.Release.Name .name }}
+        {{- end }}
+      {{- end }}
+{{- if .Values.ingress.httpChallengeCatcher.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-challenge-catcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: challenge-catcher
+  template:
+    metadata:
+      labels:
+        app: challenge-catcher
+    spec:
+      containers:
+      - name: challenge-catcher
+        image: httpd
+        ports:
+        - containerPort: 80
+          protocol: TCP
+{{- end }}
+
