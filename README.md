@@ -1,7 +1,7 @@
 # Portfolio deployments
 
 This repository contains the desired Kubernetes state for portfolio
-applications and platform tools. Argo CD watches the `master` branch and
+applications and platform tools. Argo CD watches the `main` branch and
 automatically reconciles matching Helm charts with the cluster.
 
 The Argo CD installation and ApplicationSet definitions are maintained in the
@@ -63,7 +63,7 @@ by the applications ApplicationSet.
 1. Create the environment and application directory.
 2. Add a `values.yaml` containing only that application's overrides.
 3. Validate the chart locally.
-4. Commit and push the change to `master`.
+4. Commit and push the change to `main`.
 
 Example validation:
 
@@ -109,7 +109,7 @@ The ApplicationSets enable:
 - Pruning of resources removed from Git
 - Detection of resources managed by more than one Application
 
-Removing a discovered `values.yaml` or a tool directory from `master` removes
+Removing a discovered `values.yaml` or a tool directory from `main` removes
 its generated Argo CD Application and managed Kubernetes resources. Review
 deletions carefully before pushing them.
 
