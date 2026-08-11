@@ -1,8 +1,9 @@
 # Portfolio deployments
 
 This repository contains the desired Kubernetes state for portfolio
-applications and platform tools. Argo CD watches the `main` branch and
-automatically reconciles matching Helm charts with the cluster.
+applications, privileged Kubernetes operators, and platform tools. Argo CD
+watches the `main` branch and automatically reconciles matching deployment
+packages with the cluster.
 
 The Argo CD installation and ApplicationSet definitions are maintained in the
 separate `argo` repository.
@@ -20,12 +21,17 @@ separate `argo` repository.
 │           └── <environment>/
 │               └── <application>/
 │                   └── values.yaml
+├── operators/
+│   └── pgo/
+│       └── <operator manifests or chart>
 └── tools/
-    ├── jenkins/
+    ├── postgres/
+    │   └── <PostgresCluster manifests or chart>
+    ├── backstage/
     │   ├── Chart.yaml
     │   ├── values.yaml
     │   └── templates/
-    └── backstage/
+    └── jenkins/
         ├── Chart.yaml
         ├── values.yaml
         └── templates/
@@ -79,10 +85,35 @@ helm template my-first-react-app apps/react-chart \
 Adding a matching values file creates the Argo CD Application automatically.
 Changing the file updates the deployment.
 
+## Kubernetes operators
+
+Every immediate directory under `operators/` is discovered by the
+`platform-components` ApplicationSet:
+
+```text
+operators/<operator>/
+```
+
+Operator packages may contain Helm, Kustomize, or plain Kubernetes manifests
+that Argo CD can render. The directory name becomes the Argo CD Application
+name and Kubernetes namespace. For example, `operators/pgo` becomes
+Application `pgo` in namespace `pgo`.
+
+Operators use the privileged `operators` AppProject because they may need to
+install CRDs and cluster-wide RBAC. Do not place ordinary workloads or
+namespace-scoped tools in this directory.
+
+When PGO is added, validate it using the command appropriate for its package
+format. For a Kustomize package:
+
+```bash
+kubectl kustomize operators/pgo
+```
+
 ## Platform tools
 
-Every immediate directory under `tools/` must be a complete and valid Helm
-chart:
+Every immediate directory under `tools/` must be a complete package that Argo
+CD can render. Most tools use Helm:
 
 ```text
 tools/<tool>/Chart.yaml
@@ -90,9 +121,10 @@ tools/<tool>/Chart.yaml
 
 The directory name becomes both the Argo CD Application name and Kubernetes
 namespace. For example, `tools/jenkins` is deployed as Application `jenkins`
-into namespace `jenkins`.
+into namespace `jenkins`. Operator and tool directory names must be unique
+because both are managed by the same ApplicationSet.
 
-Validate a tool before pushing it:
+Validate a Helm-based tool before pushing it:
 
 ```bash
 helm lint tools/jenkins
@@ -101,17 +133,34 @@ helm template jenkins tools/jenkins --namespace jenkins
 
 ## Synchronization behavior
 
-The ApplicationSets enable:
+The application workloads ApplicationSet enables automatic synchronization.
+The `platform-components` ApplicationSet uses Argo CD Progressive Syncs with a
+`RollingSync` strategy. It reconciles components in this order:
 
-- Automatic synchronization
-- Self-healing when cluster resources drift from Git
+1. Everything under `operators/`
+2. `tools/postgres`
+3. `tools/backstage`
+4. All remaining directories under `tools/`
+
+Each stage must become Healthy before the next stage begins. This ensures PGO
+is available before the `PostgresCluster` is applied, and PostgreSQL is healthy
+before Backstage is deployed. A PostgreSQL package must expose meaningful Argo
+CD health, using a custom health check or a validation resource, before it is
+added to this sequence.
+
+Both ApplicationSets provide:
+
+- Automatic Git reconciliation
+- Correction when cluster resources drift from Git
 - Automatic namespace creation
 - Pruning of resources removed from Git
 - Detection of resources managed by more than one Application
 
-Removing a discovered `values.yaml` or a tool directory from `main` removes
-its generated Argo CD Application and managed Kubernetes resources. Review
-deletions carefully before pushing them.
+Platform components are deleted in reverse order so dependants are removed
+before their operators. Removing a discovered `values.yaml`, operator
+directory, or tool directory from `main` removes its generated Argo CD
+Application and managed Kubernetes resources. Review deletions carefully
+before pushing them.
 
 ## Secrets and cluster prerequisites
 
@@ -119,10 +168,10 @@ Do not commit credentials, private keys, tokens, or plain-text production
 secrets. Reference an external secret manager or pre-created Kubernetes Secret
 from Helm values instead.
 
-Applications are responsible for declaring their runtime prerequisites. Before
-enabling an optional chart feature, ensure its operator or cluster API exists;
-examples include External Secrets, Gateway API, certificate management, and
-PostgreSQL operators.
+Applications are responsible for declaring their runtime prerequisites. Put
+cluster-wide controllers such as External Secrets, Gateway API implementations,
+certificate management, and PostgreSQL operators under `operators/`. Put the
+namespace-scoped custom resources or consumers under `tools/`.
 
 Namespace-scoped prerequisites, including image-pull Secrets and `SecretStore`
 resources, must exist in each generated `<application>-<environment>` namespace.
