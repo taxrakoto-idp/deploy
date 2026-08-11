@@ -1,4 +1,4 @@
-# Portfolio deployments
+# IDP deployments
 
 This repository contains the desired Kubernetes state for portfolio
 applications, privileged Kubernetes operators, and platform tools. Argo CD
@@ -161,6 +161,24 @@ before their operators. Removing a discovered `values.yaml`, operator
 directory, or tool directory from `main` removes its generated Argo CD
 Application and managed Kubernetes resources. Review deletions carefully
 before pushing them.
+
+## Label conventions
+
+Generated Applications and namespaces use standard Kubernetes application
+labels where possible:
+
+| Label | Purpose |
+| --- | --- |
+| `app.kubernetes.io/managed-by` | Identifies Argo CD as the reconciler |
+| `app.kubernetes.io/part-of` | Groups resources under `taxrakoto-idp` |
+| `app.kubernetes.io/name` | Identifies an application workload |
+| `app.kubernetes.io/component` | Identifies an operator or platform tool |
+| `taxrakoto-idp.github.io/environment` | Identifies the deployment environment |
+| `taxrakoto-idp.github.io/layer` | Separates operators from tools for ordered synchronization |
+
+The `taxrakoto-idp.github.io` prefix is the project-specific label namespace.
+It prevents generic custom labels from colliding with labels owned by other
+controllers or public projects.
 
 ## Secrets and cluster prerequisites
 
