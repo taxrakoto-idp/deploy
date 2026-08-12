@@ -1,0 +1,45 @@
+apiVersion: postgres-operator.crunchydata.com/v1
+kind: PostgresCluster
+metadata:
+  name: backstage-postgres
+  namespace: backstage
+  labels:
+    app.kubernetes.io/name: backstage-postgres
+    app.kubernetes.io/part-of: taxrakoto-idp
+    app.kubernetes.io/component: postgres
+spec:
+  postgresVersion: 17
+
+  instances:
+    - name: instance1
+      replicas: 1
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: nfs-csi
+        resources:
+          requests:
+            storage: 5Gi
+
+  users:
+    - name: backstage
+      databases:
+        - backstage
+
+  backups:
+    pgbackrest:
+      global:
+        repo1-retention-full: "2"
+      repos:
+        - name: repo1
+          schedules:
+            full: "0 1 * * 0"
+            differential: "0 1 * * 1-6"
+          volume:
+            volumeClaimSpec:
+              accessModes:
+                - ReadWriteOnce
+              storageClassName: nfs-csi
+              resources:
+                requests:
+                  storage: 5Gi

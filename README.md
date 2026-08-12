@@ -124,10 +124,14 @@ CD can render. Most tools use Helm:
 tools/<tool>/Chart.yaml
 ```
 
-The directory name becomes both the Argo CD Application name and Kubernetes
-namespace. For example, `tools/jenkins` is deployed as Application `jenkins`
-into namespace `jenkins`. Operator and tool directory names must be unique
-because both are managed by the same ApplicationSet.
+The directory name normally becomes both the Argo CD Application name and
+Kubernetes namespace. For example, `tools/jenkins` is deployed as Application
+`jenkins` into namespace `jenkins`. The `postgres` and `backstage` Applications
+are the exception: both deploy into the shared `backstage` namespace so
+Backstage can read PGO's generated connection Secret directly. Neither
+Application claims ownership of that shared Namespace object. Operator and tool
+directory names must be unique because both are managed by the same
+ApplicationSet.
 
 Validate a Helm-based tool before pushing it:
 
