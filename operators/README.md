@@ -11,4 +11,5 @@ Operators are deployed through the privileged `operators` AppProject before
 platform tools. Keep ordinary applications and namespace-scoped tools out of
 this directory.
 
-PGO will be added at `operators/pgo`.
+PGO is installed from the official pinned Crunchy OCI Helm chart through the
+wrapper at `operators/pgo`.

@@ -1,0 +1,11 @@
+# Values for the official Crunchy PGO dependency.
+pgo:
+  # Watch PostgresCluster resources in all namespaces.
+  singleNamespace: false
+
+  # Keep normal installations concise; enable only while troubleshooting PGO.
+  debug: false
+
+  # One replica is sufficient for the initial reference deployment. The
+  # upstream leader-election lease remains enabled for future scaling.
+  replicas: 1

@@ -1,6 +1,6 @@
 # IDP deployments
 
-This repository contains the desired Kubernetes state for portfolio
+This repository contains the desired Kubernetes state for IDP
 applications, privileged Kubernetes operators, and platform tools. Argo CD
 watches the `main` branch and automatically reconciles matching deployment
 packages with the cluster.
@@ -23,7 +23,10 @@ separate `argo` repository.
 │                   └── values.yaml
 ├── operators/
 │   └── pgo/
-│       └── <operator manifests or chart>
+│       ├── Chart.yaml
+│       ├── Chart.lock
+│       ├── values.yaml
+│       └── charts/
 └── tools/
     ├── postgres/
     │   └── <PostgresCluster manifests or chart>
@@ -103,11 +106,13 @@ Operators use the privileged `operators` AppProject because they may need to
 install CRDs and cluster-wide RBAC. Do not place ordinary workloads or
 namespace-scoped tools in this directory.
 
-When PGO is added, validate it using the command appropriate for its package
-format. For a Kustomize package:
+PGO uses a wrapper chart around the pinned official Crunchy OCI chart. Validate
+the wrapper and its CRDs before pushing it:
 
 ```bash
-kubectl kustomize operators/pgo
+helm dependency build operators/pgo
+helm lint operators/pgo
+helm template pgo operators/pgo --namespace pgo --include-crds
 ```
 
 ## Platform tools

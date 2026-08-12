@@ -1,0 +1,5 @@
+Crunchy PGO {{ .Chart.AppVersion }} is managed by Argo CD.
+
+Verify the operator:
+  kubectl get deployment pgo --namespace {{ .Release.Namespace }}
+  kubectl get crd postgresclusters.postgres-operator.crunchydata.com
