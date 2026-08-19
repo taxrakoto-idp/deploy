@@ -1,0 +1,62 @@
+actions:
+  enabled: true
+  giteaRootURL: http://gitea-http.gitea.svc:3000
+  existingSecret: gitea-actions-runner-token
+  existingSecretKey: runner-token
+
+  global:
+    storageClass: nfs-csi
+
+  statefulset:
+    replicas: 1
+    timezone: Indian/Antananarivo
+    serviceAccountName: gitea-actions-runner
+    persistence:
+      size: 1Gi
+
+    runner:
+      registry: docker.gitea.com
+      repository: runner
+      tag: 2.0.1
+      pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      extraEnvs:
+        - name: GITEA_RUNNER_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: GITEA_RUNNER_LABELS
+          value: ubuntu-latest:docker://node:22-bookworm
+      config: |
+        log:
+          level: info
+        runner:
+          capacity: 1
+          timeout: 30m
+        cache:
+          enabled: false
+        container:
+          require_docker: true
+          docker_timeout: 300s
+          options: "--cpus 1 --memory 1g --pids-limit 256"
+
+    dind:
+      rootless: true
+      uid: "1000"
+      registry: docker.io
+      repository: docker
+      tag: 29.5.2-dind-rootless
+      pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 2Gi

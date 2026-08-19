@@ -42,18 +42,19 @@ kubectl --namespace gitea get secret gitea-admin-secret \
 printf '\n'
 ```
 
-Gitea Actions is enabled in the application configuration, but no runner is
-installed by this package. The runner remains a separate platform component.
+Gitea Actions is enabled in the application configuration. Its runner is
+installed separately by `tools/gitea-actions` after this package becomes
+Healthy and its `PostSync` initializer has generated the registration token.
 
 ## Platform initialization
 
 After Gitea becomes Healthy, an idempotent Argo CD `PostSync` hook initializes
 the installation-local platform resources through the Gitea API:
 
-- public `taxrakoto-idp` organization;
+- public `demo-idp` organization;
 - restricted `backstage-bot` and `gitops-bot` service accounts;
 - `scaffolders` and `gitops-writers` teams;
-- private `taxrakoto-idp/application-gitops` repository initialized on `main`;
+- private `demo-idp/application-gitops` repository initialized on `main`;
 - narrowly scoped API tokens for the two service accounts; and
 - an organization-level Gitea Actions runner registration token.
 
@@ -63,10 +64,9 @@ stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`, and
 values are reused on later syncs, and credential values are never logged or
 stored in Git.
 
-The future Actions runner release must read the `runner-token` key from
-`gitea-actions-runner-token`. That Secret currently lives in the `gitea`
-namespace, so the runner release should use the same namespace unless a
-deliberate cross-namespace Secret distribution mechanism is added.
+The Actions runner reads the `runner-token` key from
+`gitea-actions-runner-token`. The Secret and runner both live in the `gitea`
+namespace, avoiding cross-namespace credential distribution.
 
 Verify initialization without displaying credentials:
 

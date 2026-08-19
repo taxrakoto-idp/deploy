@@ -1,0 +1,11 @@
+apiVersion: v2
+name: gitea-actions-wrapper
+description: TaxRakoto IDP wrapper for the official Gitea Actions runner chart
+type: application
+version: 0.1.0
+appVersion: "0.261.3"
+icon: https://docs.gitea.com/img/gitea.svg
+dependencies:
+  - name: actions
+    version: 0.1.2
+    repository: https://dl.gitea.com/charts/
