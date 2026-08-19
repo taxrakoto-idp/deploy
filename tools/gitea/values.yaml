@@ -1,0 +1,141 @@
+gitea:
+  replicaCount: 1
+
+  strategy:
+    type: Recreate
+
+  image:
+    registry: docker.gitea.com
+    repository: gitea
+    tag: "1.27.0"
+    pullPolicy: IfNotPresent
+    rootless: true
+
+  service:
+    http:
+      type: ClusterIP
+      port: 3000
+      clusterIP: ""
+    ssh:
+      type: ClusterIP
+      port: 2222
+      clusterIP: ""
+
+  ingress:
+    enabled: false
+
+  persistence:
+    enabled: true
+    create: true
+    mount: true
+    claimName: gitea-shared-storage
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClass: nfs-csi
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  gitea:
+    admin:
+      existingSecret: gitea-admin-secret
+      email: gitea@local.domain
+      passwordMode: initialOnlyNoReset
+
+    config:
+      database:
+        DB_TYPE: postgres
+        HOST: gitea-postgres-primary.gitea.svc:5432
+        NAME: gitea
+        USER: gitea
+        SSL_MODE: disable
+      server:
+        DOMAIN: localhost
+        HTTP_PORT: 3000
+        ROOT_URL: http://localhost:3000/
+        SSH_DOMAIN: localhost
+        SSH_PORT: 2222
+        SSH_LISTEN_PORT: 2222
+      service:
+        DISABLE_REGISTRATION: true
+      actions:
+        ENABLED: true
+      session:
+        PROVIDER: memory
+      cache:
+        ADAPTER: memory
+      queue:
+        TYPE: level
+
+    additionalConfigFromEnvs:
+      - name: GITEA__database__PASSWD
+        valueFrom:
+          secretKeyRef:
+            name: gitea-postgres-pguser-gitea
+            key: password
+
+    startupProbe:
+      enabled: true
+      httpGet:
+        path: /api/healthz
+        port: http
+      initialDelaySeconds: 10
+      timeoutSeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 30
+
+    readinessProbe:
+      enabled: true
+      httpGet:
+        path: /api/healthz
+        port: http
+      initialDelaySeconds: 5
+      timeoutSeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 6
+
+    livenessProbe:
+      enabled: true
+      httpGet:
+        path: /api/healthz
+        port: http
+      initialDelaySeconds: 30
+      timeoutSeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 6
+
+  valkey-cluster:
+    enabled: false
+
+  valkey:
+    enabled: false
+
+  postgresql-ha:
+    enabled: false
+
+  postgresql:
+    enabled: false
+
+  test:
+    enabled: false

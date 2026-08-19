@@ -1,0 +1,17 @@
+Gitea is available inside the cluster at:
+
+  http://gitea-http.{{ .Release.Namespace }}.svc:3000
+
+Local UI access:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/gitea-http 3000:3000
+
+Read the generated administrator username:
+
+  kubectl --namespace {{ .Release.Namespace }} get secret gitea-admin-secret \
+    --output=jsonpath='{.data.username}' | base64 --decode
+
+Read the generated administrator password:
+
+  kubectl --namespace {{ .Release.Namespace }} get secret gitea-admin-secret \
+    --output=jsonpath='{.data.password}' | base64 --decode
