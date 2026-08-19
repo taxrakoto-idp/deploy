@@ -3,6 +3,8 @@ kind: PostgresCluster
 metadata:
   name: gitea-postgres
   namespace: gitea
+  annotations:
+    postgres-operator.crunchydata.com/autoCreateUserSchema: "true"
   labels:
     app.kubernetes.io/name: gitea-postgres
     app.kubernetes.io/part-of: taxrakoto-idp
