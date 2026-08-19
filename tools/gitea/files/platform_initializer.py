@@ -323,10 +323,6 @@ def ensure_access_token(username, password, secret_name, existing_token, scopes)
 
 def ensure_runner_token():
     values = get_kubernetes_secret(RUNNER_SECRET)
-    if values.get(RUNNER_SECRET_KEY):
-        print("Organization runner registration token already exists in Kubernetes")
-        return
-
     _, token_response = gitea_request(
         f"/orgs/{quoted(ORGANIZATION)}/actions/runners/registration-token",
         method="POST",
@@ -335,8 +331,11 @@ def ensure_runner_token():
     token = token_response.get("token")
     if not token:
         raise RuntimeError("Gitea did not return an organization runner token")
+    if values.get(RUNNER_SECRET_KEY) == token:
+        print("Organization runner registration token is current")
+        return
     patch_kubernetes_secret(RUNNER_SECRET, {RUNNER_SECRET_KEY: token})
-    print("Stored organization runner registration token in Kubernetes")
+    print("Reconciled organization runner registration token in Kubernetes")
 
 
 def main():
