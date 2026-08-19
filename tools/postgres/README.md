@@ -14,9 +14,10 @@ PGO creates a `backstage` database and user. The generated Secret is named
 `backstage-postgres-pguser-backstage` and contains the connection values that
 the Backstage deployment will reference; no database password is stored in Git.
 
-The database and pgBackRest repository each request 5 Gi from the `nfs-csi`
-StorageClass. A full backup runs every Sunday at 01:00 and a differential backup
-runs at 01:00 on the other days. The two most recent full backup sets are kept.
+The database requests 5 Gi from the `nfs-csi` StorageClass. The pgBackRest
+configuration is retained as commented YAML in `postgrescluster.yaml`, but it
+is disabled for the local demonstration so an additional 5 Gi repository PVC
+is not allocated. Uncomment it when backup and restore testing is required.
 
 ## Validate
 

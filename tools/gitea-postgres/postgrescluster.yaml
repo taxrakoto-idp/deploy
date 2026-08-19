@@ -1,10 +1,10 @@
 apiVersion: postgres-operator.crunchydata.com/v1
 kind: PostgresCluster
 metadata:
-  name: backstage-postgres
-  namespace: backstage
+  name: gitea-postgres
+  namespace: gitea
   labels:
-    app.kubernetes.io/name: backstage-postgres
+    app.kubernetes.io/name: gitea-postgres
     app.kubernetes.io/part-of: taxrakoto-idp
     app.kubernetes.io/component: postgres
 spec:
@@ -19,14 +19,14 @@ spec:
         storageClassName: nfs-csi
         resources:
           requests:
-            storage: 5Gi
+            storage: 2Gi
 
   users:
-    - name: backstage
+    - name: gitea
       databases:
-        - backstage
+        - gitea
 
-  # Backups are disabled for the local demonstration to avoid allocating the
+  # Backups are disabled for the local demonstration to avoid allocating an
   # additional pgBackRest repository PVC. Uncomment this block when backups
   # are required.
   # backups:
@@ -36,8 +36,8 @@ spec:
   #     repos:
   #       - name: repo1
   #         schedules:
-  #           full: "0 1 * * 0"
-  #           differential: "0 1 * * 1-6"
+  #           full: "0 2 * * 0"
+  #           differential: "0 2 * * 1-6"
   #         volume:
   #           volumeClaimSpec:
   #             accessModes:
@@ -45,4 +45,4 @@ spec:
   #             storageClassName: nfs-csi
   #             resources:
   #               requests:
-  #                 storage: 5Gi
+  #                 storage: 2Gi
