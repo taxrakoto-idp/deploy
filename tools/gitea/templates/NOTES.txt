@@ -15,3 +15,11 @@ Read the generated administrator password:
 
   kubectl --namespace {{ .Release.Namespace }} get secret gitea-admin-secret \
     --output=jsonpath='{.data.password}' | base64 --decode
+
+Verify the PostSync platform initializer and its credential Secrets:
+
+  kubectl --namespace {{ .Release.Namespace }} get job gitea-platform-initializer
+  kubectl --namespace {{ .Release.Namespace }} get secret \
+    {{ .Values.platformInitialization.serviceAccounts.backstage.secretName }} \
+    {{ .Values.platformInitialization.serviceAccounts.gitops.secretName }} \
+    {{ .Values.platformInitialization.runnerTokenSecret.name }}

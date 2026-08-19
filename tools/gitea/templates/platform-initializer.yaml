@@ -1,0 +1,198 @@
+{{- if .Values.platformInitialization.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-platform-initializer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+data:
+  platform_initializer.py: |
+{{ .Files.Get "files/platform_initializer.py" | indent 4 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.platformInitialization.serviceAccounts.backstage.secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-service-account
+    app.kubernetes.io/component: backstage
+    app.kubernetes.io/part-of: taxrakoto-idp
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.platformInitialization.serviceAccounts.gitops.secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-service-account
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/part-of: taxrakoto-idp
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.platformInitialization.runnerTokenSecret.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-actions-runner-token
+    app.kubernetes.io/part-of: taxrakoto-idp
+type: Opaque
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-platform-initializer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-platform-initializer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - {{ .Values.platformInitialization.serviceAccounts.backstage.secretName }}
+      - {{ .Values.platformInitialization.serviceAccounts.gitops.secretName }}
+      - {{ .Values.platformInitialization.runnerTokenSecret.name }}
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-platform-initializer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-platform-initializer
+subjects:
+  - kind: ServiceAccount
+    name: gitea-platform-initializer
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitea-platform-initializer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gitea-platform-initializer
+        app.kubernetes.io/part-of: taxrakoto-idp
+    spec:
+      serviceAccountName: gitea-platform-initializer
+      restartPolicy: Never
+      containers:
+        - name: initialize
+          image: {{ .Values.platformInitialization.image }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - /scripts/platform_initializer.py
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: GITEA_URL
+              value: {{ .Values.platformInitialization.giteaUrl | quote }}
+            - name: GITEA_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin-secret
+                  key: username
+            - name: GITEA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin-secret
+                  key: password
+            - name: ORGANIZATION
+              value: {{ .Values.platformInitialization.organization.name | quote }}
+            - name: ORGANIZATION_FULL_NAME
+              value: {{ .Values.platformInitialization.organization.fullName | quote }}
+            - name: ORGANIZATION_DESCRIPTION
+              value: {{ .Values.platformInitialization.organization.description | quote }}
+            - name: ORGANIZATION_VISIBILITY
+              value: {{ .Values.platformInitialization.organization.visibility | quote }}
+            - name: GITOPS_REPOSITORY
+              value: {{ .Values.platformInitialization.gitopsRepository.name | quote }}
+            - name: GITOPS_REPOSITORY_DESCRIPTION
+              value: {{ .Values.platformInitialization.gitopsRepository.description | quote }}
+            - name: GITOPS_REPOSITORY_PRIVATE
+              value: {{ .Values.platformInitialization.gitopsRepository.private | quote }}
+            - name: BACKSTAGE_USERNAME
+              value: {{ .Values.platformInitialization.serviceAccounts.backstage.username | quote }}
+            - name: BACKSTAGE_EMAIL
+              value: {{ .Values.platformInitialization.serviceAccounts.backstage.email | quote }}
+            - name: BACKSTAGE_SECRET
+              value: {{ .Values.platformInitialization.serviceAccounts.backstage.secretName | quote }}
+            - name: GITOPS_USERNAME
+              value: {{ .Values.platformInitialization.serviceAccounts.gitops.username | quote }}
+            - name: GITOPS_EMAIL
+              value: {{ .Values.platformInitialization.serviceAccounts.gitops.email | quote }}
+            - name: GITOPS_SECRET
+              value: {{ .Values.platformInitialization.serviceAccounts.gitops.secretName | quote }}
+            - name: RUNNER_SECRET
+              value: {{ .Values.platformInitialization.runnerTokenSecret.name | quote }}
+            - name: RUNNER_SECRET_KEY
+              value: {{ .Values.platformInitialization.runnerTokenSecret.key | quote }}
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: script
+          configMap:
+            name: gitea-platform-initializer
+            defaultMode: 0444
+        - name: tmp
+          emptyDir: {}
+{{- end }}

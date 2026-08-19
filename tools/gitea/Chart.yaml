@@ -2,7 +2,7 @@ apiVersion: v2
 name: gitea-wrapper
 description: TaxRakoto IDP wrapper for the official Gitea Helm chart
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "1.27.0"
 icon: https://docs.gitea.com/img/gitea.svg
 dependencies:

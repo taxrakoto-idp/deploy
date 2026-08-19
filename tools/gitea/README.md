@@ -45,6 +45,37 @@ printf '\n'
 Gitea Actions is enabled in the application configuration, but no runner is
 installed by this package. The runner remains a separate platform component.
 
+## Platform initialization
+
+After Gitea becomes Healthy, an idempotent Argo CD `PostSync` hook initializes
+the installation-local platform resources through the Gitea API:
+
+- public `taxrakoto-idp` organization;
+- restricted `backstage-bot` and `gitops-bot` service accounts;
+- `scaffolders` and `gitops-writers` teams;
+- private `taxrakoto-idp/application-gitops` repository initialized on `main`;
+- narrowly scoped API tokens for the two service accounts; and
+- an organization-level Gitea Actions runner registration token.
+
+The Job reads the bootstrap administrator account only while it runs. It
+stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`, and
+`gitea-actions-runner-token` Kubernetes Secrets. Existing resources and Secret
+values are reused on later syncs, and credential values are never logged or
+stored in Git.
+
+The future Actions runner release must read the `runner-token` key from
+`gitea-actions-runner-token`. That Secret currently lives in the `gitea`
+namespace, so the runner release should use the same namespace unless a
+deliberate cross-namespace Secret distribution mechanism is added.
+
+Verify initialization without displaying credentials:
+
+```bash
+kubectl --namespace gitea get secret \
+  gitea-backstage-bot gitea-gitops-bot gitea-actions-runner-token
+kubectl --namespace gitea get job gitea-platform-initializer
+```
+
 ## Validate
 
 ```bash
