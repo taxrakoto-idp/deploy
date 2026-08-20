@@ -64,7 +64,10 @@ backstage:
             name: backstage-postgres-pguser-backstage
             key: dbname
       - name: PGSSLMODE
-        value: require
+        # Keep the local demo connection encrypted while accepting PGO's
+        # installation-local self-signed certificate. Production deployments
+        # must mount the PGO CA and use verify-full instead.
+        value: no-verify
 
     resources:
       requests:

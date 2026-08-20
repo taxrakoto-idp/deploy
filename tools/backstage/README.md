@@ -33,7 +33,11 @@ namespace. The Deployment maps only these keys:
 | `POSTGRES_PASSWORD` | `password` |
 | `POSTGRES_DB` | `dbname` |
 
-TLS is requested with `PGSSLMODE=require`. No database credentials are stored
+The local demonstration uses `PGSSLMODE=no-verify`. Traffic remains encrypted,
+but Backstage does not verify PGO's installation-local self-signed certificate.
+This avoids distributing a CA file in the minimal demo; it is not appropriate
+for a public or production deployment. Production deployments must mount the
+PGO CA certificate and use `verify-full`. No database credentials are stored
 in Git.
 
 ## Access
