@@ -1,0 +1,9 @@
+Backstage is available inside the cluster at:
+
+  http://backstage.{{ .Release.Namespace }}.svc.cluster.local:7007
+
+For the local demonstration, access it through a port forward:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/backstage 7007:7007
+
+Then open http://localhost:7007.

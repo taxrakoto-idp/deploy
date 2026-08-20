@@ -1,0 +1,144 @@
+backstage:
+  fullnameOverride: backstage
+
+  commonLabels:
+    app.kubernetes.io/part-of: taxrakoto-idp
+
+  ingress:
+    enabled: false
+
+  backstage:
+    replicas: 1
+    revisionHistoryLimit: 2
+
+    # Backstage plugins can run database migrations during startup. Recreate
+    # prevents two revisions from migrating the same database concurrently.
+    strategy:
+      type: Recreate
+
+    image:
+      registry: ghcr.io
+      repository: taxrakoto-idp/backstage
+      tag: latest
+      digest: sha256:ee726cee4df120049c2381a18d49e2962908526447502834f663fdca0d8c0379
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+
+    # Keep the image's explicit production configuration loading behavior even
+    # though the upstream chart overrides the container command.
+    command:
+      - node
+      - packages/backend
+    args:
+      - --config
+      - app-config.yaml
+      - --config
+      - app-config.production.yaml
+
+    # PGO creates this Secret from the PostgresCluster user declaration. Map
+    # individual fields instead of importing every connection value.
+    extraEnvVars:
+      - name: POSTGRES_HOST
+        valueFrom:
+          secretKeyRef:
+            name: backstage-postgres-pguser-backstage
+            key: host
+      - name: POSTGRES_PORT
+        valueFrom:
+          secretKeyRef:
+            name: backstage-postgres-pguser-backstage
+            key: port
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            name: backstage-postgres-pguser-backstage
+            key: user
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: backstage-postgres-pguser-backstage
+            key: password
+      - name: POSTGRES_DB
+        valueFrom:
+          secretKeyRef:
+            name: backstage-postgres-pguser-backstage
+            key: dbname
+      - name: PGSSLMODE
+        value: require
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+    startupProbe:
+      httpGet:
+        path: /.backstage/health/v1/liveness
+        port: 7007
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 30
+
+    readinessProbe:
+      httpGet:
+        path: /.backstage/health/v1/readiness
+        port: 7007
+        scheme: HTTP
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+
+    livenessProbe:
+      httpGet:
+        path: /.backstage/health/v1/liveness
+        port: 7007
+        scheme: HTTP
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+    podSecurityContext:
+      runAsNonRoot: true
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      privileged: false
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+
+    terminationGracePeriodSeconds: 30
+
+  service:
+    type: ClusterIP
+    ports:
+      backend: 7007
+      name: http-backend
+      targetPort: backend
+
+  serviceAccount:
+    create: true
+    name: backstage
+    automountServiceAccountToken: false
+    labels:
+      app.kubernetes.io/part-of: taxrakoto-idp
+
+  # PostgreSQL is managed separately by PGO in tools/postgres.
+  postgresql:
+    enabled: false
+
+  metrics:
+    serviceMonitor:
+      enabled: false

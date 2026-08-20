@@ -1,0 +1,11 @@
+apiVersion: v2
+name: backstage-wrapper
+description: TaxRakoto IDP wrapper for the official Backstage Helm chart
+type: application
+version: 0.1.0
+appVersion: "1.54.0"
+icon: https://backstage.io/img/logo_assets/svg/Icon_Black.svg
+dependencies:
+  - name: backstage
+    version: 2.10.0
+    repository: https://backstage.github.io/charts
