@@ -1,0 +1,84 @@
+replicaCount: 1
+revisionHistoryLimit: 2
+
+# Backstage should generate an explicit, supported PHP tag. The Apache variant
+# serves the cloned source from /var/www/html without requiring a custom command.
+image:
+  repository: docker.io/library/php
+  tag: "8.4-apache"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# The init container fetches this revision before the PHP container starts.
+# Prefer the immutable commit SHA returned by publish:gitea over a mutable branch.
+source:
+  repository: http://gitea-http.gitea.svc:3000/demo-idp/example-app.git
+  revision: main
+  depth: 1
+  mountPath: /var/www/html
+  readOnly: true
+  gitImage:
+    repository: docker.io/alpine/git
+    tag: "2.49.1"
+    pullPolicy: IfNotPresent
+  credentials:
+    # Public demo repositories need no credentials. For a private repository,
+    # create this Secret in the application namespace; never put a token here.
+    existingSecret: ""
+    usernameKey: username
+    tokenKey: token
+
+# Values are rendered as strings in a ConfigMap and exposed through envFrom.
+env:
+  APP_ENV: demo
+
+# Leave empty for php:<version>-apache. Each item must be a separate argument.
+# Example CLI server:
+# command: ["php"]
+# args: ["-S", "0.0.0.0:8080", "-t", "/var/www/html"]
+command: []
+args: []
+
+containerPort: 80
+
+service:
+  type: ClusterIP
+  port: 80
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    failureThreshold: 30
+    periodSeconds: 2
+  readiness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 5
+  liveness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

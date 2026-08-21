@@ -1,0 +1,9 @@
+apiVersion: v2
+name: php-app
+description: Deploy a PHP application whose source is fetched from Git at startup
+type: application
+version: 0.1.0
+appVersion: "8.4"
+maintainers:
+  - name: Tahina Rakotomaharo
+    url: https://devops-tahina.dev/
