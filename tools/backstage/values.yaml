@@ -20,7 +20,7 @@ backstage:
       registry: ghcr.io
       repository: taxrakoto-idp/backstage
       tag: latest
-      digest: sha256:7e4629fc879eeed4cafb0585fba6f4f18adce6359af3fdffd7930fbfaf0f5f55
+      digest: sha256:1314e40f66ec455a268c060faaa3168175a418f94f1e2f2c99e65ec739c3cb63
       pullPolicy: IfNotPresent
       pullSecrets: []
 
