@@ -54,6 +54,8 @@ spec:
                 export GIT_ASKPASS=/tmp/git-askpass.sh
                 export GIT_TERMINAL_PROMPT=0
               fi
+              
+              git config --global --add safe.directory /workspace
               git init /workspace
               git -C /workspace remote add origin "$GIT_REPOSITORY"
               git -C /workspace fetch --depth="$GIT_DEPTH" origin "$GIT_REVISION"
