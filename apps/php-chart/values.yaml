@@ -13,7 +13,7 @@ imagePullSecrets: []
 # The init container fetches this revision before the PHP container starts.
 # Prefer the immutable commit SHA returned by publish:gitea over a mutable branch.
 source:
-  repository: http://gitea-http.gitea.svc:3000/demo-idp/example-app.git
+  repository: http://gitea-http.gitea.svc.cluster.local:3000/demo-idp/example-app.git
   revision: main
   depth: 1
   mountPath: /var/www/html
