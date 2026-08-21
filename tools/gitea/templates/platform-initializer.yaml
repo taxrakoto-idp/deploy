@@ -61,6 +61,19 @@ stringData:
   type: git
   url: {{ .Values.platformInitialization.argocdRepositorySecret.url | quote }}
 ---
+# Backstage consumes this namespace-local Secret. The PostSync initializer
+# copies only the two purpose-scoped bot identities required by its backend.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.platformInitialization.backstageCredentialsSecret.name }}
+  namespace: {{ .Values.platformInitialization.backstageCredentialsSecret.namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-bot-credentials
+    app.kubernetes.io/component: backend-credential
+    app.kubernetes.io/part-of: taxrakoto-idp
+type: Opaque
+---
 apiVersion: v1
 kind: Secret
 metadata:
@@ -156,6 +169,42 @@ subjects:
     name: gitea-platform-initializer
     namespace: {{ .Release.Namespace }}
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-platform-initializer-backstage-credentials
+  namespace: {{ .Values.platformInitialization.backstageCredentialsSecret.namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - {{ .Values.platformInitialization.backstageCredentialsSecret.name }}
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-platform-initializer-backstage-credentials
+  namespace: {{ .Values.platformInitialization.backstageCredentialsSecret.namespace }}
+  labels:
+    app.kubernetes.io/name: gitea-platform-initializer
+    app.kubernetes.io/part-of: taxrakoto-idp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-platform-initializer-backstage-credentials
+subjects:
+  - kind: ServiceAccount
+    name: gitea-platform-initializer
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -236,6 +285,10 @@ spec:
               value: {{ .Values.platformInitialization.argocdRepositorySecret.namespace | quote }}
             - name: ARGOCD_REPOSITORY_SECRET
               value: {{ .Values.platformInitialization.argocdRepositorySecret.name | quote }}
+            - name: BACKSTAGE_CREDENTIALS_SECRET_NAMESPACE
+              value: {{ .Values.platformInitialization.backstageCredentialsSecret.namespace | quote }}
+            - name: BACKSTAGE_CREDENTIALS_SECRET
+              value: {{ .Values.platformInitialization.backstageCredentialsSecret.name | quote }}
             - name: RUNNER_SECRET
               value: {{ .Values.platformInitialization.runnerTokenSecret.name | quote }}
             - name: RUNNER_SECRET_KEY

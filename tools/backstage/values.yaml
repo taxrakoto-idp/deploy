@@ -20,7 +20,7 @@ backstage:
       registry: ghcr.io
       repository: taxrakoto-idp/backstage
       tag: latest
-      digest: sha256:1314e40f66ec455a268c060faaa3168175a418f94f1e2f2c99e65ec739c3cb63
+      digest: sha256:7d9af41e33efa3ddb3d6b12eda88f2ee984e40d3cc85987b94546a3987f61945
       pullPolicy: IfNotPresent
       pullSecrets: []
 
@@ -68,6 +68,21 @@ backstage:
         # installation-local self-signed certificate. Production deployments
         # must mount the PGO CA and use verify-full instead.
         value: no-verify
+      - name: GITEA_BACKSTAGE_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: gitea-bot-credentials
+            key: backstage-username
+      - name: GITEA_BACKSTAGE_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: gitea-bot-credentials
+            key: backstage-token
+      - name: GITEA_GITOPS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: gitea-bot-credentials
+            key: gitops-token
 
     resources:
       requests:

@@ -33,6 +33,10 @@ ARGOCD_REPOSITORY_SECRET_NAMESPACE = os.environ[
     "ARGOCD_REPOSITORY_SECRET_NAMESPACE"
 ]
 ARGOCD_REPOSITORY_SECRET = os.environ["ARGOCD_REPOSITORY_SECRET"]
+BACKSTAGE_CREDENTIALS_SECRET_NAMESPACE = os.environ[
+    "BACKSTAGE_CREDENTIALS_SECRET_NAMESPACE"
+]
+BACKSTAGE_CREDENTIALS_SECRET = os.environ["BACKSTAGE_CREDENTIALS_SECRET"]
 RUNNER_SECRET = os.environ["RUNNER_SECRET"]
 RUNNER_SECRET_KEY = os.environ["RUNNER_SECRET_KEY"]
 
@@ -356,6 +360,33 @@ def reconcile_argocd_repository_credentials(username, token):
     print("Reconciled the Argo CD read-only repository credential")
 
 
+def reconcile_backstage_credentials(backstage_token, gitops_token):
+    patch_kubernetes_secret(
+        BACKSTAGE_CREDENTIALS_SECRET,
+        {
+            "backstage-username": BACKSTAGE_USERNAME,
+            "backstage-token": backstage_token,
+            "gitops-username": GITOPS_USERNAME,
+            "gitops-token": gitops_token,
+        },
+        namespace=BACKSTAGE_CREDENTIALS_SECRET_NAMESPACE,
+    )
+    print("Reconciled the Backstage Gitea bot credentials")
+
+
+def reconcile_gitops_actions_secret(gitops_token):
+    gitea_request(
+        f"/orgs/{quoted(ORGANIZATION)}/actions/secrets/GITOPS_TOKEN",
+        method="PUT",
+        payload={
+            "data": gitops_token,
+            "description": "Write deployment values for the trusted local demo",
+        },
+        expected=(201, 204),
+    )
+    print("Reconciled the organization Gitea Actions GitOps secret")
+
+
 def ensure_runner_token():
     values = get_kubernetes_secret(RUNNER_SECRET)
     _, token_response = gitea_request(
@@ -421,7 +452,7 @@ def main():
     ensure_team_repository(gitops_team)
     ensure_team_repository(argocd_team)
 
-    ensure_access_token(
+    backstage_token = ensure_access_token(
         BACKSTAGE_USERNAME,
         backstage_password,
         BACKSTAGE_SECRET,
@@ -436,13 +467,15 @@ def main():
         ["read:organization", "read:repository", "read:user"],
     )
     reconcile_argocd_repository_credentials(ARGOCD_USERNAME, argocd_token)
-    ensure_access_token(
+    gitops_token = ensure_access_token(
         GITOPS_USERNAME,
         gitops_password,
         GITOPS_SECRET,
         gitops_token,
         ["read:organization", "write:repository", "read:user"],
     )
+    reconcile_backstage_credentials(backstage_token, gitops_token)
+    reconcile_gitops_actions_secret(gitops_token)
     ensure_runner_token()
     print("Gitea platform initialization completed successfully")
 

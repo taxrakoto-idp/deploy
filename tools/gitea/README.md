@@ -57,7 +57,8 @@ the installation-local platform resources through the Gitea API:
 - `scaffolders`, `gitops-writers`, and `gitops-readers` teams;
 - private `demo-idp/application-gitops` repository initialized on `main`;
 - purpose-scoped API tokens for the three technical users;
-- an organization-level Gitea Actions runner registration token.
+- an organization-level Gitea Actions runner registration token;
+- an organization-level `GITOPS_TOKEN` Actions secret for generated workflows.
 
 The Job reads the bootstrap administrator account only while it runs. It
 stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`,
@@ -75,9 +76,9 @@ These accounts are Gitea technical users, not Kubernetes ServiceAccounts:
   `demo-idp/application-gitops` repository. It belongs to the
   `gitops-writers` team, cannot create organization repositories, and receives
   an API token with `read:organization`, `write:repository`, and `read:user`
-  scopes. The planned custom Backstage action will use this identity to create
-  a branch, commit `apps/<environment>/<application>/values.yaml`, and open a
-  pull request.
+  scopes. The custom Backstage action uses this identity to commit
+  `apps/<application>/<environment>/values.yaml` directly to the trusted demo's
+  `main` branch.
 - `argocd-reader` belongs to the `gitops-readers` team, which has read-only
   `repo.code` access specifically to `application-gitops`. Its API token has
   only `read:organization`, `read:repository`, and `read:user` scopes.
@@ -128,18 +129,22 @@ by the host in `repoUrl` and executes as `backstage-bot`:
     sourcePath: .
 ```
 
-The Gitea integration does not switch identities per template step. The
-planned GitOps pull-request action therefore needs a separate backend-only
-configuration using `GITEA_GITOPS_TOKEN`. A template will pass only safe data
+The Gitea integration does not switch identities per template step. The GitOps
+file action therefore uses separate backend-only configuration with
+`GITEA_GITOPS_TOKEN`. A template passes only safe data
 such as the environment, application name, target path, and generated values;
 the custom backend action will inject `gitops-bot` credentials internally.
 
-The generated Secrets currently live in the `gitea` namespace, while the
-Backstage Pod lives in the `backstage` namespace. A Pod cannot consume a Secret
-from another namespace. Before enabling these actions, synchronize only the
-required bot usernames and tokens into a dedicated Secret in the `backstage`
-namespace and expose them to the backend as environment variables. Do not
-expose them to the frontend.
+The initializer copies only the required `backstage-bot` and `gitops-bot`
+credentials into `gitea-bot-credentials` in the `backstage` namespace. The
+Backstage Pod exposes these values only to its backend process. The initializer
+ServiceAccount can get and patch only this named Secret.
+
+The same GitOps token is stored as the organization-level Actions secret
+`GITOPS_TOKEN`, allowing generated application workflows to promote a source
+commit without asking the user for credentials. This is acceptable only for
+this trusted local demo: anyone allowed to change a generated workflow could
+attempt to misuse that write-capable secret.
 
 ### Permission boundary to enforce
 
@@ -162,6 +167,7 @@ kubectl --namespace gitea get secret \
   gitea-backstage-bot gitea-gitops-bot gitea-argocd-reader \
   gitea-actions-runner-token
 kubectl --namespace argocd get secret application-gitops-repository
+kubectl --namespace backstage get secret gitea-bot-credentials
 kubectl --namespace gitea get job gitea-platform-initializer
 ```
 
