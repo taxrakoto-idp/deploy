@@ -26,6 +26,13 @@ BACKSTAGE_SECRET = os.environ["BACKSTAGE_SECRET"]
 GITOPS_USERNAME = os.environ["GITOPS_USERNAME"]
 GITOPS_EMAIL = os.environ["GITOPS_EMAIL"]
 GITOPS_SECRET = os.environ["GITOPS_SECRET"]
+ARGOCD_USERNAME = os.environ["ARGOCD_USERNAME"]
+ARGOCD_EMAIL = os.environ["ARGOCD_EMAIL"]
+ARGOCD_SECRET = os.environ["ARGOCD_SECRET"]
+ARGOCD_REPOSITORY_SECRET_NAMESPACE = os.environ[
+    "ARGOCD_REPOSITORY_SECRET_NAMESPACE"
+]
+ARGOCD_REPOSITORY_SECRET = os.environ["ARGOCD_REPOSITORY_SECRET"]
 RUNNER_SECRET = os.environ["RUNNER_SECRET"]
 RUNNER_SECRET_KEY = os.environ["RUNNER_SECRET_KEY"]
 
@@ -127,8 +134,8 @@ def wait_for_gitea():
     raise RuntimeError("Gitea did not become healthy within five minutes")
 
 
-def get_kubernetes_secret(name):
-    path = f"/api/v1/namespaces/{quoted(NAMESPACE)}/secrets/{quoted(name)}"
+def get_kubernetes_secret(name, namespace=NAMESPACE):
+    path = f"/api/v1/namespaces/{quoted(namespace)}/secrets/{quoted(name)}"
     status, secret = kubernetes_request(path, expected=(200, 404))
     if status == 404:
         raise RuntimeError(f"required Kubernetes Secret {name} does not exist")
@@ -139,8 +146,8 @@ def get_kubernetes_secret(name):
     return decoded
 
 
-def patch_kubernetes_secret(name, values):
-    path = f"/api/v1/namespaces/{quoted(NAMESPACE)}/secrets/{quoted(name)}"
+def patch_kubernetes_secret(name, values, namespace=NAMESPACE):
+    path = f"/api/v1/namespaces/{quoted(namespace)}/secrets/{quoted(name)}"
     encoded_values = {
         key: base64.b64encode(value.encode("utf-8")).decode("ascii")
         for key, value in values.items()
@@ -234,24 +241,39 @@ def ensure_organization():
     print(f"Created organization {ORGANIZATION}")
 
 
-def ensure_team(name, description, can_create_repositories, includes_all_repositories):
+def ensure_team(
+    name,
+    description,
+    can_create_repositories,
+    includes_all_repositories,
+    permission="write",
+    units=None,
+):
+    team_configuration = {
+        "name": name,
+        "description": description,
+        "permission": permission,
+        "can_create_org_repo": can_create_repositories,
+        "includes_all_repositories": includes_all_repositories,
+        "units": units
+        or ["repo.code", "repo.actions", "repo.pulls", "repo.releases"],
+    }
     _, teams = gitea_request(f"/orgs/{quoted(ORGANIZATION)}/teams?limit=50")
     for team in teams:
         if team["name"] == name:
-            print(f"Team {name} already exists")
+            gitea_request(
+                f"/teams/{team['id']}",
+                method="PATCH",
+                payload=team_configuration,
+                expected=(200,),
+            )
+            print(f"Reconciled team {name}")
             return team["id"]
 
     _, team = gitea_request(
         f"/orgs/{quoted(ORGANIZATION)}/teams",
         method="POST",
-        payload={
-            "name": name,
-            "description": description,
-            "permission": "write",
-            "can_create_org_repo": can_create_repositories,
-            "includes_all_repositories": includes_all_repositories,
-            "units": ["repo.code", "repo.actions", "repo.pulls", "repo.releases"],
-        },
+        payload=team_configuration,
         expected=(201,),
     )
     print(f"Created team {name}")
@@ -302,7 +324,7 @@ def ensure_team_repository(team_id):
 def ensure_access_token(username, password, secret_name, existing_token, scopes):
     if existing_token:
         print(f"Access token for {username} already exists in Kubernetes")
-        return
+        return existing_token
 
     _, token_response = gitea_request(
         f"/users/{quoted(username)}/tokens",
@@ -319,6 +341,19 @@ def ensure_access_token(username, password, secret_name, existing_token, scopes)
         raise RuntimeError(f"Gitea did not return the new token for {username}")
     patch_kubernetes_secret(secret_name, {"token": token})
     print(f"Stored access token for {username} in Kubernetes")
+    return token
+
+
+def reconcile_argocd_repository_credentials(username, token):
+    patch_kubernetes_secret(
+        ARGOCD_REPOSITORY_SECRET,
+        {
+            "username": username,
+            "password": token,
+        },
+        namespace=ARGOCD_REPOSITORY_SECRET_NAMESPACE,
+    )
+    print("Reconciled the Argo CD read-only repository credential")
 
 
 def ensure_runner_token():
@@ -349,8 +384,13 @@ def main():
         GITOPS_USERNAME,
         GITOPS_SECRET,
     )
+    argocd_password, argocd_token = ensure_service_account_credentials(
+        ARGOCD_USERNAME,
+        ARGOCD_SECRET,
+    )
     ensure_gitea_user(BACKSTAGE_USERNAME, BACKSTAGE_EMAIL, backstage_password)
     ensure_gitea_user(GITOPS_USERNAME, GITOPS_EMAIL, gitops_password)
+    ensure_gitea_user(ARGOCD_USERNAME, ARGOCD_EMAIL, argocd_password)
 
     ensure_organization()
     scaffolders_team = ensure_team(
@@ -365,11 +405,21 @@ def main():
         can_create_repositories=False,
         includes_all_repositories=False,
     )
+    argocd_team = ensure_team(
+        "gitops-readers",
+        "Read-only Argo CD access to installation-local desired state",
+        can_create_repositories=False,
+        includes_all_repositories=False,
+        permission="read",
+        units=["repo.code"],
+    )
     ensure_team_member(scaffolders_team, BACKSTAGE_USERNAME)
     ensure_team_member(gitops_team, GITOPS_USERNAME)
+    ensure_team_member(argocd_team, ARGOCD_USERNAME)
 
     ensure_repository()
     ensure_team_repository(gitops_team)
+    ensure_team_repository(argocd_team)
 
     ensure_access_token(
         BACKSTAGE_USERNAME,
@@ -378,6 +428,14 @@ def main():
         backstage_token,
         ["write:organization", "write:repository", "read:user"],
     )
+    argocd_token = ensure_access_token(
+        ARGOCD_USERNAME,
+        argocd_password,
+        ARGOCD_SECRET,
+        argocd_token,
+        ["read:organization", "read:repository", "read:user"],
+    )
+    reconcile_argocd_repository_credentials(ARGOCD_USERNAME, argocd_token)
     ensure_access_token(
         GITOPS_USERNAME,
         gitops_password,

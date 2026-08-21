@@ -22,4 +22,7 @@ Verify the PostSync platform initializer and its credential Secrets:
   kubectl --namespace {{ .Release.Namespace }} get secret \
     {{ .Values.platformInitialization.serviceAccounts.backstage.secretName }} \
     {{ .Values.platformInitialization.serviceAccounts.gitops.secretName }} \
+    {{ .Values.platformInitialization.serviceAccounts.argocd.secretName }} \
     {{ .Values.platformInitialization.runnerTokenSecret.name }}
+  kubectl --namespace {{ .Values.platformInitialization.argocdRepositorySecret.namespace }} \
+    get secret {{ .Values.platformInitialization.argocdRepositorySecret.name }}

@@ -20,6 +20,14 @@ platformInitialization:
       username: gitops-bot
       email: gitops-bot@local.domain
       secretName: gitea-gitops-bot
+    argocd:
+      username: argocd-reader
+      email: argocd-reader@local.domain
+      secretName: gitea-argocd-reader
+  argocdRepositorySecret:
+    name: application-gitops-repository
+    namespace: argocd
+    url: http://gitea-http.gitea.svc:3000/demo-idp/application-gitops.git
   runnerTokenSecret:
     name: gitea-actions-runner-token
     key: runner-token

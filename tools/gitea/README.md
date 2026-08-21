@@ -52,17 +52,18 @@ After Gitea becomes Healthy, an idempotent Argo CD `PostSync` hook initializes
 the installation-local platform resources through the Gitea API:
 
 - public `demo-idp` organization;
-- purpose-specific `backstage-bot` and `gitops-bot` technical users;
-- `scaffolders` and `gitops-writers` teams;
+- purpose-specific `backstage-bot`, `gitops-bot`, and `argocd-reader`
+  technical users;
+- `scaffolders`, `gitops-writers`, and `gitops-readers` teams;
 - private `demo-idp/application-gitops` repository initialized on `main`;
-- purpose-scoped API tokens for the two technical users; and
+- purpose-scoped API tokens for the three technical users;
 - an organization-level Gitea Actions runner registration token.
 
 The Job reads the bootstrap administrator account only while it runs. It
-stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`, and
-`gitea-actions-runner-token` Kubernetes Secrets. Existing resources and Secret
-values are reused on later syncs, and credential values are never logged or
-stored in Git.
+stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`,
+`gitea-argocd-reader`, and `gitea-actions-runner-token` Kubernetes Secrets.
+Existing resources and Secret values are reused on later syncs, and credential
+values are never logged or stored in Git.
 
 These accounts are Gitea technical users, not Kubernetes ServiceAccounts:
 
@@ -77,8 +78,24 @@ These accounts are Gitea technical users, not Kubernetes ServiceAccounts:
   scopes. The planned custom Backstage action will use this identity to create
   a branch, commit `apps/<environment>/<application>/values.yaml`, and open a
   pull request.
-- Argo CD must use a separate read-only repository credential. It must not use
-  either write-capable bot token.
+- `argocd-reader` belongs to the `gitops-readers` team, which has read-only
+  `repo.code` access specifically to `application-gitops`. Its API token has
+  only `read:organization`, `read:repository`, and `read:user` scopes.
+
+### Argo CD repository credential
+
+The initializer copies only the `argocd-reader` username and token into the
+`application-gitops-repository` Secret in the `argocd` namespace. That Secret
+is labeled `argocd.argoproj.io/secret-type: repository`, so the ApplicationSet
+controller and repo-server use it for the private internal repository at:
+
+```text
+http://gitea-http.gitea.svc:3000/demo-idp/application-gitops.git
+```
+
+The initializer ServiceAccount receives `get` and `patch` permission only for
+that named Secret in `argocd`; it cannot list Secrets or modify other Argo CD
+credentials. Argo CD therefore never receives either write-capable bot token.
 
 ### Backstage credential selection
 
@@ -142,7 +159,9 @@ Verify initialization without displaying credentials:
 
 ```bash
 kubectl --namespace gitea get secret \
-  gitea-backstage-bot gitea-gitops-bot gitea-actions-runner-token
+  gitea-backstage-bot gitea-gitops-bot gitea-argocd-reader \
+  gitea-actions-runner-token
+kubectl --namespace argocd get secret application-gitops-repository
 kubectl --namespace gitea get job gitea-platform-initializer
 ```
 
