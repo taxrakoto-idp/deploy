@@ -52,10 +52,10 @@ After Gitea becomes Healthy, an idempotent Argo CD `PostSync` hook initializes
 the installation-local platform resources through the Gitea API:
 
 - public `demo-idp` organization;
-- restricted `backstage-bot` and `gitops-bot` service accounts;
+- purpose-specific `backstage-bot` and `gitops-bot` technical users;
 - `scaffolders` and `gitops-writers` teams;
 - private `demo-idp/application-gitops` repository initialized on `main`;
-- narrowly scoped API tokens for the two service accounts; and
+- purpose-scoped API tokens for the two technical users; and
 - an organization-level Gitea Actions runner registration token.
 
 The Job reads the bootstrap administrator account only while it runs. It
@@ -63,6 +63,76 @@ stores generated credentials in `gitea-backstage-bot`, `gitea-gitops-bot`, and
 `gitea-actions-runner-token` Kubernetes Secrets. Existing resources and Secret
 values are reused on later syncs, and credential values are never logged or
 stored in Git.
+
+These accounts are Gitea technical users, not Kubernetes ServiceAccounts:
+
+- `backstage-bot` publishes the application source repositories created by
+  Backstage Software Templates. It belongs to the `scaffolders` team, can
+  create repositories in `demo-idp`, and receives an API token with
+  `write:organization`, `write:repository`, and `read:user` scopes.
+- `gitops-bot` proposes deployment changes in the existing private
+  `demo-idp/application-gitops` repository. It belongs to the
+  `gitops-writers` team, cannot create organization repositories, and receives
+  an API token with `read:organization`, `write:repository`, and `read:user`
+  scopes. The planned custom Backstage action will use this identity to create
+  a branch, commit `apps/<environment>/<application>/values.yaml`, and open a
+  pull request.
+- Argo CD must use a separate read-only repository credential. It must not use
+  either write-capable bot token.
+
+### Backstage credential selection
+
+Software Templates must not accept a bot username or token as user input and
+must not store credentials in `template.yaml` or its skeleton. The Backstage
+backend selects the appropriate technical identity for each action.
+
+The standard Gitea integration is configured with `backstage-bot`:
+
+```yaml
+integrations:
+  gitea:
+    - host: ${GITEA_HOST}
+      baseUrl: ${GITEA_BASE_URL}
+      username: ${GITEA_BACKSTAGE_USERNAME}
+      password: ${GITEA_BACKSTAGE_TOKEN}
+```
+
+After `@backstage/plugin-scaffolder-backend-module-gitea` is installed and
+registered in the Backstage backend, `publish:gitea` selects this integration
+by the host in `repoUrl` and executes as `backstage-bot`:
+
+```yaml
+- id: publish
+  name: Create application repository
+  action: publish:gitea
+  input:
+    repoUrl: gitea.example?owner=demo-idp&repo=${{ parameters.name }}
+    defaultBranch: main
+    sourcePath: .
+```
+
+The Gitea integration does not switch identities per template step. The
+planned GitOps pull-request action therefore needs a separate backend-only
+configuration using `GITEA_GITOPS_TOKEN`. A template will pass only safe data
+such as the environment, application name, target path, and generated values;
+the custom backend action will inject `gitops-bot` credentials internally.
+
+The generated Secrets currently live in the `gitea` namespace, while the
+Backstage Pod lives in the `backstage` namespace. A Pod cannot consume a Secret
+from another namespace. Before enabling these actions, synchronize only the
+required bot usernames and tokens into a dedicated Secret in the `backstage`
+namespace and expose them to the backend as environment variables. Do not
+expose them to the frontend.
+
+### Permission boundary to enforce
+
+The current `scaffolders` team is created with
+`includes_all_repositories=true`. As a result, `backstage-bot` currently also
+has write access to `application-gitops`, despite the intended separation from
+`gitops-bot`. Before connecting Backstage, change this team to exclude all
+repositories by default and explicitly grant it access only to generated
+application repositories. `gitops-bot` should be the only automation identity
+allowed to modify `application-gitops`.
 
 The Actions runner reads the `runner-token` key from
 `gitea-actions-runner-token`. The Secret and runner both live in the `gitea`
